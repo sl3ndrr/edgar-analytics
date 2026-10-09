@@ -51,9 +51,11 @@ async function inspectWaterfall(page,key,width,theme) {
   assert.ok(motion.every(s=>s.duration==='0s' && s.opacity==='1'),'Reduced motion');
   const geometry=await inspectLayout(page,width);
   if([390,1440].includes(width)){
-    await page.locator('.waterfall').screenshot({path:`test-results/waterfall-${key}-${width}-${theme}.png`});
-    await page.locator('.module-kernzahlen').screenshot({path:`test-results/core-${key}-${width}-${theme}.png`});
-    await page.locator('.module-aktivitaet_heatmap').screenshot({path:`test-results/activity-${key}-${width}-${theme}.png`});
+    // Exclude fixed overlays from element crops; header geometry is measured above.
+    const style='.site-header,.skip-link{visibility:hidden!important}';
+    await page.locator('.waterfall').screenshot({path:`test-results/waterfall-${key}-${width}-${theme}.png`,style});
+    await page.locator('.module-kernzahlen').screenshot({path:`test-results/core-${key}-${width}-${theme}.png`,style});
+    await page.locator('.module-aktivitaet_heatmap').screenshot({path:`test-results/activity-${key}-${width}-${theme}.png`,style});
   }
   return {period:key,taxes:await taxes.textContent(),waterfall:values.map(signed),pause:p.activity.longest_pause,geometry};
 }
