@@ -1,0 +1,11 @@
+raw/
+*.csv
+.private/
+__pycache__/
+*.pyc
+*.tmp
+qa/
+node_modules/
+test-results/
+public/
+package-lock.json
