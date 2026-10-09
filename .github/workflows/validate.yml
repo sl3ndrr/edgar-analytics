@@ -1,0 +1,36 @@
+name: Analysis and browser checks
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r scripts/requirements.txt
+      - run: python scripts/test_analysis.py && python scripts/validate_public.py
+      - name: Install optional QA tools
+        run: |
+          npm install --no-save playwright@1.56.1 @axe-core/playwright@4.10.2 lighthouse@12.8.2
+          npx playwright install --with-deps chromium
+      - name: Test four viewports, interaction, reduced motion and accessibility
+        run: |
+          python -m http.server 8000 --bind 127.0.0.1 &
+          node tests/browser.mjs
+      - name: Lighthouse
+        run: |
+          CHROME_PATH="$(node --input-type=module -e "import {chromium} from 'playwright';console.log(chromium.executablePath())")" npx lighthouse http://127.0.0.1:8000 --chrome-flags="--headless --no-sandbox" --output=json --output=html --output-path=./test-results/lighthouse --only-categories=performance,accessibility,best-practices --quiet
+          node tests/check_lighthouse.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-and-lighthouse-results
+          path: test-results/

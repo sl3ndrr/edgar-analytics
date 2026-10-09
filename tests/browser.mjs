@@ -1,0 +1,64 @@
+import {chromium} from 'playwright';
+import AxeBuilder from '@axe-core/playwright';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const summary=JSON.parse(await readFile('data/summary.json','utf8'));
+const expectedSpread=new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(summary.periods.all.core.total_volume*0.003);
+const url=process.env.TEST_URL||'http://127.0.0.1:8000';
+await mkdir('test-results',{recursive:true});
+const browser=await chromium.launch({headless:true});
+const results=[];
+try {
+  for(const [width,height] of [[360,640],[390,844],[768,1024],[1440,900]]) {
+    const page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce'});
+    const errors=[],external=[];
+    page.on('pageerror',error=>errors.push(error.message));
+    page.on('request',req=>{if(!req.url().startsWith(url))external.push(req.url());});
+    await page.goto(url);await page.locator('.module').last().waitFor();
+    assert.equal(await page.locator('.module').count(),13);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Horizontal overflow at '+width);
+    const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    await writeFile(`test-results/axe-${width}.json`,JSON.stringify(accessibility,null,2));
+    await page.screenshot({path:`test-results/${width}x${height}-light.png`,fullPage:true});
+    await page.getByRole('button',{name:/Farbmodus wechseln/}).click();
+    assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
+    const darkAccessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
+    await writeFile(`test-results/axe-${width}-dark.json`,JSON.stringify(darkAccessibility,null,2));
+    await page.screenshot({path:`test-results/${width}x${height}-dark.png`,fullPage:true});
+    await page.getByRole('button',{name:'Monat',exact:true}).click();
+    await page.getByRole('combobox',{name:'Zeitraum',exact:true}).selectOption('2026-03');
+    assert.match(page.url(),/period=2026-03/);
+    await page.getByRole('button',{name:'Vorheriger Zeitraum'}).click();
+    assert.match(page.url(),/period=2026-02/);
+    await page.getByRole('button',{name:'Jahr',exact:true}).click();
+    assert.match(page.url(),/period=2026$/);
+    await page.getByRole('button',{name:/Ansicht anpassen/}).click();
+    await page.getByRole('button',{name:'Nur Kernzahlen',exact:true}).click();
+    assert.equal(await page.locator('.module').count(),1);
+    await page.getByRole('button',{name:'Nur Trade Republic',exact:true}).click();
+    assert.equal(await page.locator('.module-trade_republic').count(),1);
+    await page.getByRole('button',{name:'Alles',exact:true}).click();
+    assert.equal(await page.locator('.module').count(),13);
+    const ids=await page.locator('#feature-switches input').evaluateAll(els=>els.map(el=>el.value));
+    for(const id of ids){await page.locator(`#feature-switches input[value="${id}"]`).uncheck();assert.equal(await page.locator(`.module-${id}`).count(),0);await page.locator(`#feature-switches input[value="${id}"]`).check();assert.equal(await page.locator(`.module-${id}`).count(),1);}
+    await page.getByRole('button',{name:'Einstellungen schließen'}).click();
+    await page.getByRole('button',{name:'Gesamt',exact:true}).click();
+    await page.locator('#spread').focus();await page.locator('#spread').press('End');
+    assert.match(await page.locator('#spread-label').textContent(),/0,3/);
+    assert.equal(await page.locator('#spread-amount').textContent(),expectedSpread);
+    await page.goto(url+'/#modules=core,fees&period=2026-03');
+    await page.locator('.module-kosten').waitFor();assert.equal(await page.locator('.module').count(),2);
+    await page.reload();await page.locator('.module-kosten').waitFor();assert.equal(await page.locator('.module').count(),2);
+    assert.equal(external.length,0,'Unexpected external requests');assert.deepEqual(errors,[]);
+    results.push({width,height,overflow:false,modules:13,errors,external,axeViolations:accessibility.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length})),darkAxeViolations:darkAccessibility.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length}))});
+    await page.close();
+  }
+  const blocked=await browser.newPage({viewport:{width:390,height:844}});
+  await blocked.addInitScript(()=>{Storage.prototype.getItem=function(){throw new Error('blocked');};Storage.prototype.setItem=function(){throw new Error('blocked');};});
+  await blocked.goto(url);await blocked.locator('.module').last().waitFor();assert.equal(await blocked.locator('.module').count(),13);await blocked.close();
+  const missing=await browser.newPage();await missing.route('**/data/summary.json',r=>r.fulfill({status:404,body:'missing'}));await missing.goto(url);await missing.locator('#status.error').waitFor();assert.match(await missing.locator('#status').textContent(),/konnte nicht geladen/);await missing.close();
+  const normal=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'no-preference'});await normal.goto(url);await normal.locator('.module').last().waitFor();await normal.locator('#trade_republic').scrollIntoViewIfNeeded();await normal.screenshot({path:'test-results/390x844-animated.png'});await normal.close();
+  await writeFile('test-results/browser-results.json',JSON.stringify(results,null,2));
+  assert.equal(results.flatMap(r=>[...r.axeViolations,...r.darkAxeViolations]).length,0,'Accessibility violations; inspect saved reports.');
+  console.log(JSON.stringify(results,null,2));
+} finally {await writeFile('test-results/browser-results.json',JSON.stringify(results,null,2));await browser.close();}

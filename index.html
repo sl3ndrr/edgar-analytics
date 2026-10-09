@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="Private, anonymisierte Auswertung von Handelsaktivität. Reproduzierbare FIFO-Analyse, ohne Tracking.">
+  <meta name="color-scheme" content="light dark">
+  <title>Edgars Depot</title>
+  <link rel="stylesheet" href="vendor/uPlot.min.css">
+  <link rel="stylesheet" href="src/styles/main.css">
+  <script src="vendor/uPlot.iife.min.js" defer></script>
+  <script type="module" src="src/main.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#analysis">Zur Auswertung</a>
+  <header class="site-header">
+    <a class="brand" href="#modules=kernzahlen&period=all" aria-label="Kernzahlen öffnen"><span class="brand-mark" aria-hidden="true">e</span><span id="brand-title">Edgars Depot</span></a>
+    <div class="header-right"><span id="range" class="header-range"></span><button id="theme" class="icon-button" aria-label="Farbmodus wechseln">◐</button><button id="customize" class="outline-button">Ansicht anpassen <span aria-hidden="true">＋</span></button></div>
+  </header>
+  <main id="analysis" tabindex="-1">
+    <section class="introduction"><div class="eyebrow"><span class="live-dot" aria-hidden="true"></span> Eine private Rückschau</div><h1>Ein Blick auf<br><span id="hero-title">Edgars Depot.</span></h1><p>Was das Handeln ergeben hat.<br>Nachvollziehbar, sachlich und ohne persönliche Daten.</p><div class="intro-meta"><span>FIFO-Methode</span><span>EUR</span><span>Ohne Kursbewertung</span></div></section>
+    <div class="period-bar"><div class="segmented" role="group" aria-label="Zeitraum wählen"><button data-period-mode="all" aria-pressed="true">Gesamt</button><button data-period-mode="year" aria-pressed="false">Jahr</button><button data-period-mode="month" aria-pressed="false">Monat</button></div><div class="period-select"><button id="previous" class="icon-button" aria-label="Vorheriger Zeitraum">←</button><label class="sr-only" for="period">Jahr oder Monat</label><select id="period" aria-label="Zeitraum"></select><button id="next" class="icon-button" aria-label="Nächster Zeitraum">→</button></div><span id="period-label" class="period-label" role="status"></span></div>
+    <p id="status" class="status" role="status">Die Auswertung wird geladen …</p>
+    <div id="modules" class="modules"></div>
+  </main>
+  <dialog id="settings" aria-labelledby="settings-title"><div class="sheet-head"><div><div class="eyebrow">Deine Perspektive</div><h2 id="settings-title">Ansicht anpassen</h2></div><button id="close-settings" class="icon-button" aria-label="Einstellungen schließen">×</button></div><p>Nutze alles oder nur, was du sehen möchtest.</p><div class="presets"><button data-preset="all">Alles</button><button data-preset="core">Nur Kernzahlen</button><button data-preset="tr">Nur Trade Republic</button></div><div id="feature-switches"></div><p class="small">Die Auswahl bleibt auf diesem Gerät gespeichert. Der Link enthält Module und Zeitraum.</p><button id="share" class="solid-button">Ansichtslink kopieren</button><p id="share-status" role="status" class="small"></p></dialog>
+  <footer><div><strong id="footer-title">Edgars Depot</strong><span>Eine Auswertung der sichtbaren Buchungen.</span></div><p>Private Auswertung. Keine Anlageberatung. Alle persönlichen Daten entfernt.</p><p class="small">Offene Positionen ohne bereitgestellte Kurse sind nicht bewertet. Spreads und tatsächliche Gewinne des Anbieters sind im Export nicht sichtbar.</p></footer>
+</body>
+</html>

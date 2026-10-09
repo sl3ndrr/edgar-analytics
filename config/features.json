@@ -1,0 +1,67 @@
+[
+  {
+    "id": "kernzahlen",
+    "title": "Kernzahlen",
+    "enabled": true
+  },
+  {
+    "id": "topwin_toploss",
+    "title": "Beste und schwächste Ergebnisse",
+    "enabled": true
+  },
+  {
+    "id": "volumen",
+    "title": "Volumen & Monatsübersicht",
+    "enabled": true
+  },
+  {
+    "id": "kosten",
+    "title": "Was Gebühren verändert haben",
+    "enabled": true
+  },
+  {
+    "id": "trefferquote",
+    "title": "Qualität der Ergebnisse",
+    "enabled": true
+  },
+  {
+    "id": "haltedauer",
+    "title": "Wie lange Positionen gehalten wurden",
+    "enabled": true
+  },
+  {
+    "id": "equity_drawdown",
+    "title": "Ergebnis im Verlauf",
+    "enabled": true
+  },
+  {
+    "id": "aktivitaet_heatmap",
+    "title": "Wann gehandelt wurde",
+    "enabled": true
+  },
+  {
+    "id": "titel",
+    "title": "Instrumente & Konzentration",
+    "enabled": true
+  },
+  {
+    "id": "kapital_bilanz",
+    "title": "Kapital & Bilanz",
+    "enabled": true
+  },
+  {
+    "id": "trade_republic",
+    "title": "Edgar & Trade Republic",
+    "enabled": true
+  },
+  {
+    "id": "fazit",
+    "title": "Was die Zahlen zeigen",
+    "enabled": true
+  },
+  {
+    "id": "datenqualitaet",
+    "title": "Datenqualität & Methodik",
+    "enabled": true
+  }
+]
