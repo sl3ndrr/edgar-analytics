@@ -1,12 +1,14 @@
 const nf = new Intl.NumberFormat('de-DE', {maximumFractionDigits: 2});
 const ef = new Intl.NumberFormat('de-DE', {style:'currency', currency:'EUR'});
 const cf = new Intl.NumberFormat('de-DE', {notation:'compact',maximumFractionDigits:1,style:'currency',currency:'EUR'});
+const df = new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'});
+const mf = new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'});
 export const e = v => String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
 export const eur = v => v == null ? 'Nicht ermittelbar' : ef.format(Math.abs(v)<0.005?0:v);
 export const num = v => v == null ? '—' : nf.format(v);
 export const pct = v => v == null ? '—' : num(v)+' %';
-export const date = v => v ? new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(v+'T12:00:00')) : '—';
-export const month = v => new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}).format(new Date(v+'-01T12:00:00'));
+export const date = v => v ? df.format(new Date(v+'T12:00:00')) : '—';
+export const month = v => mf.format(new Date(v+'-01T12:00:00'));
 export const sign = v => v > .005 ? 'positive' : v < -.005 ? 'negative' : '';
 export const hours = v => v == null ? '—' : v < 24 ? num(v)+' h' : num(v/24)+' Tage';
 export function value(v,format='eur',cls='') {const text=format==='eur'?eur(v):format==='pct'?pct(v):num(v);return `<span class="numeric ${cls}" ${v==null?'':`data-count="${v}" data-format="${format}"`} title="${e(text)}">${e(text)}</span>`;}

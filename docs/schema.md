@@ -67,7 +67,10 @@ UTF-8 JSON. Geldwerte in EUR, Prozente als 0–100-Werte, Haltedauern in Stunden
 | `checks.cash_balance` | Zahl |
 | `checks.amount_matches_quantity_price_rows` | Zahl |
 | `checks.sell_with_tax_count` | Zahl |
+| `checks.taxed_sell_matches_product` | Zahl |
 | `checks.tax_evidence` | Zeichenfolge |
+| `checks.price_scale1000_count` | Zahl |
+| `checks.other_price_mismatch_count` | Zahl |
 | `checks.leak_check` | Zeichenfolge |
 | `months` | Array, leer möglich |
 | `months[]` | Zeichenfolge |

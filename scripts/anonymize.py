@@ -96,7 +96,10 @@ def main():
         'rows_by_type': df.type.value_counts().to_dict(), 'date_mismatches_corrected': date_mismatches,
         'missing_by_column': {k: int(df[k].eq('').sum()) for k in KEEP},
         'timezone': 'Europe/Berlin', 'currency': 'EUR'}}
-    (ROOT / '.gitignore').write_text('raw/\n*.csv\n.private/\n__pycache__/\n*.pyc\n*.tmp\n.DS_Store\nqa/\nnode_modules/\n', encoding='utf-8')
+    ignore_path = ROOT / '.gitignore'
+    existing = ignore_path.read_text(encoding='utf-8').splitlines() if ignore_path.exists() else []
+    required = ['raw/','*.csv','.private/','__pycache__/','*.pyc','*.tmp','.DS_Store','qa/','node_modules/','test-results/','public/','package-lock.json']
+    ignore_path.write_text('\n'.join(existing + [line for line in required if line not in existing]) + '\n', encoding='utf-8')
     private = ROOT / '.private'
     private.mkdir(exist_ok=True)
     output = private / 'transactions.json'

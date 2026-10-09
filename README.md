@@ -7,7 +7,7 @@ Eine private, sachliche Rückschau auf Handelsaktivität. Die statische Website 
 1. UTF-8-Exportdateien in `raw/` ablegen. Python 3.10 oder neuer verwenden; einmalig `python -m pip install -r scripts/requirements.txt` ausführen. Die Rohdaten niemals committen.
 2. `python scripts/anonymize.py` ausführen. Mehrere Dateien werden zusammengeführt, nach Transaktions-ID dedupliziert und in Berliner Zeit sortiert. Widersprüchliche Duplikate führen zum Abbruch. Die private, allowlist-basierte Zwischendatei liegt in `.private/`.
 3. `python scripts/analyze.py` ausführen. Das erstellt `data/summary.json` und prüft anschließend Namen und Leak-Muster. Beide Schritte benötigen die Quelldateien in `raw/`. Nach Änderungen an HTML, JS oder README abschließend `python scripts/anonymize.py --check-only` ausführen.
-4. `python -m http.server 8000` im Repository starten und `http://localhost:8000` öffnen. Eine direkt geöffnete HTML-Datei kann das JSON wegen Browserbeschränkungen nicht laden. Optional `python scripts/test_analysis.py` und `python scripts/validate_public.py` ausführen.
+4. `python -m http.server 8000 --bind 127.0.0.1` im Repository starten und `http://localhost:8000` öffnen. Eine direkt geöffnete HTML-Datei kann das JSON wegen Browserbeschränkungen nicht laden. Optional `python scripts/test_analysis.py` und `python scripts/validate_public.py` ausführen.
 5. Nur die geprüften öffentlichen Dateien pushen und unter **Settings → Pages → Build and deployment → Source: GitHub Actions** aktivieren. Der Workflow `pages.yml` veröffentlicht eine explizite Auswahl: HTML, Konfiguration, aggregierte Zusammenfassung, `src/` und `vendor/`. Rohdaten, private Zwischenstände, Python-Skripte und Tests werden nicht als Pages-Dateien veröffentlicht.
 
 ## Datenschutz

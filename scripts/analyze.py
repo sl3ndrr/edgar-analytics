@@ -281,7 +281,15 @@ def run(input_path, prices_path):
     checks['cash_balance'] = periods['all']['capital']['cash_end']
     checks['amount_matches_quantity_price_rows'] = periods['all']['core']['orders'] - checks['price_mismatches']
     checks['sell_with_tax_count'] = sum(r['type']=='SELL' and r['tax']!=0 for r in events)
-    checks['tax_evidence'] = 'Die besteuerte Verkaufszeile entspricht Stückzahl × Kurs auf Cent-Niveau; amount ist dort nicht um die ausgewiesene Steuer vermindert. Cash wird als amount + fee + tax gebucht.'
+    taxed_sales = [r for r in events if r['type']=='SELL' and r['tax'] != 0]
+    taxed_matches = sum(abs(r['amount'] - r['qty'] * r['price']) <= .011 for r in taxed_sales)
+    if taxed_matches != len(taxed_sales):
+        raise ValueError('Besteuerte Verkaufsbeträge weichen von Stückzahl × Kurs ab. Steuerbereinigung muss vor der Analyse geklärt werden.')
+    checks['taxed_sell_matches_product'] = taxed_matches
+    checks['tax_evidence'] = (f'{taxed_matches} von {len(taxed_sales)} besteuerten Verkaufszeilen entsprechen Stückzahl × Kurs innerhalb von 0,011 €. amount ist in diesen Zeilen nicht um die separat ausgewiesene Steuer vermindert. ' if taxed_sales else 'Keine besteuerten Verkäufe zur direkten Prüfung vorhanden. ') + 'Cash wird als amount + fee + tax gebucht; Ertragsbuchungen mit Steuerfeldern werden als separate Buchungen behandelt. Ein unabhängiger Kontoauszug liegt nicht vor.'
+    orders = [r for r in events if r['type'] in {'BUY','SELL'}]
+    checks['price_scale1000_count'] = sum(abs(r['amount']) > 0 and abs(abs(r['amount']) - r['qty'] * r['price']) > .011 and abs(abs(r['amount']) - r['qty'] * r['price']/1000) <= .011 for r in orders)
+    checks['other_price_mismatch_count'] = checks['price_mismatches'] - checks['price_scale1000_count']
     checks['leak_check'] = 'pending'
     summary = {'schema_version': 1, 'metadata': metadata, 'checks':checks, 'periods':periods,
                'months': [k for k in periods if len(k)==7], 'years':[k for k in periods if len(k)==4]}
