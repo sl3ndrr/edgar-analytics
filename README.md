@@ -1,6 +1,6 @@
 # Edgars Depot
 
-Eine private, sachliche Rückschau auf Handelsaktivität. Die statische Website zeigt ausschließlich anonymisierte Auswertungen. Sie benötigt keinen Build, keine externen Laufzeitdienste und kein Tracking. Alle Diagrammdateien liegen im Repository; uPlot 1.6.32 wird unter seiner MIT-Lizenz mitgeliefert.
+Eine private, sachliche Rückschau auf Handelsaktivität. Die statische Website zeigt ausschließlich anonymisierte Auswertungen. Sie benötigt keinen Build, keine externen Laufzeitdienste und kein Tracking. Alle Diagrammdateien liegen im Repository; uPlot 1.6.32 wird unter seiner MIT-Lizenz mitgeliefert. Eine dokumentierte lokale Anpassung setzt die Zahlenformatierung auf de-DE und verhindert einen Startabbruch bei ungültigen Browser-Sprachkennungen.
 
 ## Start in fünf Schritten
 
