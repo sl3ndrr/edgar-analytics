@@ -10,12 +10,14 @@ const browser=await chromium.launch({headless:true});
 const results=[];
 try {
   for(const [width,height] of [[360,640],[390,844],[768,1024],[1440,900]]) {
-    const page=await browser.newPage({viewport:{width,height},reducedMotion:'reduce'});
+    const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce',colorScheme:'light'});
+    const page=await context.newPage();
     const errors=[],external=[];
     page.on('pageerror',error=>errors.push(error.message));
     page.on('request',req=>{if(!req.url().startsWith(url))external.push(req.url());});
     await page.goto(url);await page.locator('.module').last().waitFor();
     assert.equal(await page.locator('.module').count(),13);
+    assert.equal(await page.locator('#status.error').count(),0);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Horizontal overflow at '+width);
     const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     await writeFile(`test-results/axe-${width}.json`,JSON.stringify(accessibility,null,2));
@@ -51,7 +53,7 @@ try {
     await page.reload();await page.locator('.module-kosten').waitFor();assert.equal(await page.locator('.module').count(),2);
     assert.equal(external.length,0,'Unexpected external requests');assert.deepEqual(errors,[]);
     results.push({width,height,overflow:false,modules:13,errors,external,axeViolations:accessibility.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length})),darkAxeViolations:darkAccessibility.violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.length}))});
-    await page.close();
+    await context.close();
   }
   const blocked=await browser.newPage({viewport:{width:390,height:844}});
   await blocked.addInitScript(()=>{Storage.prototype.getItem=function(){throw new Error('blocked');};Storage.prototype.setItem=function(){throw new Error('blocked');};});
