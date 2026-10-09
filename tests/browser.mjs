@@ -13,11 +13,12 @@ try {
     const context=await browser.newContext({viewport:{width,height},reducedMotion:'reduce',colorScheme:'light'});
     const page=await context.newPage();
     const errors=[],external=[];
-    page.on('pageerror',error=>errors.push(error.message));
+    page.on('pageerror',error=>{errors.push(error.message);console.error('PAGEERROR',error.message);});
+    page.on('console',message=>{if(message.type()==='error')console.error('BROWSER',message.text());});
     page.on('request',req=>{if(!req.url().startsWith(url))external.push(req.url());});
     await page.goto(url);await page.locator('.module').last().waitFor();
     assert.equal(await page.locator('.module').count(),13);
-    assert.equal(await page.locator('#status.error').count(),0);
+    assert.equal(await page.locator('#status.error').count(),0,await page.locator('#status').textContent());
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Horizontal overflow at '+width);
     const accessibility=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
     await writeFile(`test-results/axe-${width}.json`,JSON.stringify(accessibility,null,2));
