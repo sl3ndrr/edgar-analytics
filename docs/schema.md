@@ -11,6 +11,8 @@ UTF-8 JSON. Geldwerte in EUR, Prozente als 0–100-Werte, Haltedauern in Stunden
 | JSON-Pfad | Typ |
 |---|---|
 | `schema_version` | Zahl |
+| `metadata.pause_window.from` | ISO-Datum oder null (keine Untergrenze) |
+| `metadata.pause_window.to` | ISO-Datum oder null (keine Obergrenze) |
 | `metadata.prices_provided` | Boolean |
 | `metadata.timezone` | Zeichenfolge |
 | `metadata.currency` | Zeichenfolge |
@@ -113,6 +115,15 @@ UTF-8 JSON. Geldwerte in EUR, Prozente als 0–100-Werte, Haltedauern in Stunden
 | `periods.<period>.quality.profitable_days_percent` | Zahl |
 | `periods.<period>.quality.winning_streak` | Zahl |
 | `periods.<period>.quality.losing_streak` | Zahl |
+| `periods.<period>.holding.shortest` | Optionales Array, maximal 5, leer möglich |
+| `periods.<period>.holding.shortest[].id` | Anonyme ID |
+| `periods.<period>.holding.shortest[].name` | Instrumentname |
+| `periods.<period>.holding.shortest[].isin` | ISIN |
+| `periods.<period>.holding.shortest[].date` | ISO-Datum |
+| `periods.<period>.holding.shortest[].hours` | Zahl, nach Stückzahl gewichtet |
+| `periods.<period>.holding.shortest[].proceeds` | Zahl, EUR |
+| `periods.<period>.holding.shortest[].net` | Zahl, EUR |
+| `periods.<period>.holding.shortest[].net_percent` | Zahl oder null |
 | `periods.<period>.holding.daytrades` | Zahl |
 | `periods.<period>.holding.daytrade_percent` | Zahl |
 | `periods.<period>.holding.median_hours` | Zahl |
@@ -131,6 +142,10 @@ UTF-8 JSON. Geldwerte in EUR, Prozente als 0–100-Werte, Haltedauern in Stunden
 | `periods.<period>.activity.active_days` | Array, leer möglich |
 | `periods.<period>.activity.active_days[].date` | Zeichenfolge |
 | `periods.<period>.activity.active_days[].orders` | Zahl |
+| `periods.<period>.activity.longest_pauses` | Array, maximal 5, leer möglich |
+| `periods.<period>.activity.longest_pauses[].full_days` | Zahl, volle Tage |
+| `periods.<period>.activity.longest_pauses[].from` | ISO-Datum des letzten Handelstags davor |
+| `periods.<period>.activity.longest_pauses[].to` | ISO-Datum des ersten Handelstags danach |
 | `periods.<period>.activity.longest_pause.full_days` | Zahl |
 | `periods.<period>.activity.longest_pause.from` | Zeichenfolge |
 | `periods.<period>.activity.longest_pause.to` | Zeichenfolge |
@@ -338,11 +353,12 @@ UTF-8 JSON. Geldwerte in EUR, Prozente als 0–100-Werte, Haltedauern in Stunden
 - `checks.rows_by_type` hat die normalisierten Typen (Transfers als TRANSFER); `checks.raw_rows_by_type` hält die ursprünglichen Typ-Anzahlen ohne Einzelinformationen. `missing_by_column` zählt leere Zellen nur für erlaubte Felder.
 - `checks.unmatched_details[]` enthält anonyme id, name, isin, date, shares, proceeds und sell_fees. Wenn keine Fälle vorkommen, ist das Array leer. Der Erlös des nicht zuordenbaren Anteils ist ausgeschlossen; `capital.unmatched_effect` erklärt dessen Cash-Wirkung in der Bilanz.
 - `activity.heatmap` ist eine 7×24-Matrix: Zeilen Montag bis Sonntag, Spalten 0 bis 23 Uhr in Berliner Zeit.
+- `holding.shortest` enthält nur Closed Trades mit `proceeds >= config.json.shortest_hold_min_proceeds` (Standard 5 €, `0` ohne Filter). Sortierung: `hours` aufsteigend, `proceeds` absteigend, Datum aufsteigend. Bei leerer Periode ist die Liste leer. Das Feld ist im bestehenden Export bis zur lokalen Neuberechnung nicht vorhanden und darf nicht aus Top-Listen geschätzt werden.
 - `holding.buckets` enthält disjunkte Anzahlwerte; `daytrade_percent` bezieht sich auf Verkaufszeilen, deren gesamte bekannte Menge am selben Tag gekauft wurde.
 - `top` enthält Gewinn- und Verlustlisten nach Euro sowie nach Prozent für Verkäufe und Instrumente. Trade-Gebühren teilen sich in buy_fees und sell_fees. `partial` markiert teilweise bekannte Verkaufszeilen. Instrumentlisten nutzen die gleiche aggregierte Titelstruktur.
 - `capital.positions[]` enthält isin, name, asset_class, shares, cost (vor Gebühren), buy_fees, cost_including_fees, market_value und unrealized. Marktwert und unrealisierter Gewinn sind ohne passenden Nutzerkurs null. `valuation` ist not_valued, partial oder prices_provided.
 - `equity.daily[]` enthält date, net_cumulative (Netto-Handel), net_daily, result_daily (inkl. Erträge und Steuern) und orders. Die kumulierte Kurve startet pro Zeitraum bei null.
-- `activity.longest_pause` enthält full_days, from und to: volle Tage zwischen zwei Handelstagen derselben Periode. Optionaler Konfigurationswert `config.json.pause_analysis_start` (ISO-Datum; hier `2025-05-01`, Beginn des regelmäßigen Handelns) schließt frühere Tage nur für Pausen als Start und Ende aus. Ohne Wert kein Cutoff; weniger als zwei berücksichtigte Handelstage liefern full_days: 0 und from/to: null. Handelstage, Heatmap, Volumen, Ergebnis und Equity bleiben unverändert.
+- Die Pausen zählen volle Tage zwischen zwei Handelstagen derselben Periode. Die optionalen Werte `pause_analysis_start` und `pause_analysis_end` in `config.json` begrenzen nur diese Kennzahlen, hier auf **01.05.2025 bis 21.08.2026** einschließlich. Beide Handelstage müssen innerhalb liegen; eine fehlende Grenze ist unbeschränkt. `activity.longest_pauses` enthält bis zu fünf positive Pausen, absteigend nach Dauer, bei Gleichstand nach früherem Start. `longest_pause` entspricht dem ersten Eintrag; ohne Pause gilt 0 Tage und `from`/`to: null`. Alle anderen Kennzahlen bleiben unverändert. `metadata.pause_window` liefert die Grenzen für den UI-Hinweis.
 - Der Wasserfall im Modul Kernzahlen liest `core.gross`, `-costs.realized_fees`, `core.dividends + core.interest`, `core.tax_signed` und `core.result`; `core.gross - costs.realized_fees = core.net`, die ersten vier Schritte ergeben `core.result` (Toleranz 0,01 €). Gebühren offener Positionen sind nicht enthalten.
 - `titles[]` enthält jedes im Zeitraum gehandelte Instrument: isin, name, asset_class, volume, orders, net, gross, fees, cost, closed und net_percent. `classes` nutzt dynamische Anlageklassenschlüssel STOCK/CRYPTO/FUND mit volume, orders und net.
 - `metadata.prices_provided` sagt nur aus, ob optionale Kurse vorhanden sind; es bestätigt weder Aktualität noch vollständige Abdeckung.

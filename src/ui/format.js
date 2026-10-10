@@ -10,7 +10,7 @@ export const pct = v => v == null ? '—' : num(v)+' %';
 export const date = v => v ? df.format(new Date(v+'T12:00:00')) : '—';
 export const month = v => mf.format(new Date(v+'-01T12:00:00'));
 export const sign = v => v > .005 ? 'positive' : v < -.005 ? 'negative' : '';
-export const hours = v => v == null ? '—' : v < 24 ? num(v)+' h' : num(v/24)+' Tage';
+export const hours = (v, precise=false) => v == null ? '—' : precise && v < 1/60 ? num(Math.round(v*3600))+' Sek.' : precise && v < 1 ? num(Math.round(v*60))+' Min.' : v < 24 ? num(v)+' h' : num(v/24)+' Tage';
 export function value(v,format='eur',cls='') {const text=format==='eur'?eur(v):format==='pct'?pct(v):num(v);return `<span class="numeric ${cls}" ${v==null?'':`data-count="${v}" data-format="${format}"`} title="${e(text)}">${e(text)}</span>`;}
 export function metric(label,v,format='eur',note='',signed=false){return `<div class="metric"><div class="metric-label">${e(label)}</div><div class="metric-value">${value(v,format,signed?sign(v):'')}</div>${note?`<p class="small">${e(note)}</p>`:''}</div>`;}
 export function table(headers,rows,caption=''){return `<div class="table-wrap" tabindex="0" role="region" aria-label="${e(caption || headers.join(' · '))}"><table>${caption?`<caption>${e(caption)}</caption>`:''}<thead><tr>${headers.map(h=>`<th scope="col">${e(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(row=>`<tr>${row.map((v,i)=>`<${i?'td':'th scope="row"'}>${v}</${i?'td':'th'}>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}">Keine Daten in diesem Zeitraum.</td></tr>`}</tbody></table></div>`;}

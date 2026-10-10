@@ -3,5 +3,7 @@
   "show_age": false,
   "age": null,
   "spread_default_percent": 0,
-  "pause_analysis_start": "2025-05-01"
+  "pause_analysis_start": "2025-05-01",
+  "pause_analysis_end": "2026-08-21",
+  "shortest_hold_min_proceeds": 5.0
 }

@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import json
 import pandas as pd
-from analyze import prepare, fifo, run, evaluate, longest_pause
+from analyze import prepare, fifo, run, evaluate, longest_pause, longest_pauses, shortest_holds
 from anonymize import leak_check, names_from
 
 def order(i,typ,qty,amount,fee=-1,time='2026-03-01T09:00:00Z'):
@@ -21,6 +21,7 @@ class FifoTests(unittest.TestCase):
         after=evaluate(*args,pause_analysis_start='2025-05-01')
         self.assertEqual(after['activity']['longest_pause'],{'full_days':7,'from':'2025-05-05','to':'2025-05-13'})
         before['activity']['longest_pause']=after['activity']['longest_pause']
+        before['activity']['longest_pauses']=after['activity']['longest_pauses']
         self.assertEqual(before,after)
         april=evaluate('2025-04','2025-04-16','2025-04-30',events,closed,unknown,snaps,{'prices_provided':False},'2025-05-01')
         self.assertEqual(april['activity']['longest_pause'],{'full_days':0,'from':None,'to':None})
@@ -29,6 +30,64 @@ class FifoTests(unittest.TestCase):
     def test_pause_without_cutoff(self):
         self.assertEqual(longest_pause(['2025-05-05','2025-04-16']),
                          {'full_days':18,'from':'2025-04-16','to':'2025-05-05'})
+
+    def test_pause_window_and_top_five(self):
+        days = ['2025-04-16', '2025-05-05', '2025-05-13', '2025-05-19',
+                '2025-05-24', '2025-05-29', '2025-06-02', '2025-06-06',
+                '2026-08-21', '2026-09-02']
+        pauses = longest_pauses(days, '2025-05-01', '2025-06-06')
+        self.assertEqual([p['full_days'] for p in pauses], [7, 5, 4, 4, 3])
+        self.assertEqual([p['from'] for p in pauses], days[1:6])
+        self.assertEqual(longest_pause(days, '2025-05-01', '2025-06-06'), pauses[0])
+        self.assertEqual(longest_pauses(['2026-08-21', '2026-09-02'], None, '2026-08-21'), [])
+        self.assertEqual(longest_pauses(['2025-05-01', '2025-05-02']), [])
+        for start, end in [('2025-04-01', '2025-04-30'), ('2026-09-01', '2026-09-30')]:
+            events = prepare([order(1, 'BUY', 1, -10, time=start+'T09:00:00Z'),
+                              order(2, 'BUY', 1, -10, time=end+'T09:00:00Z')])
+            closed, unknown, snaps = fifo(events, {})
+            args = ('test', start, end, events, closed, unknown, snaps, {'prices_provided': False})
+            before = evaluate(*args)
+            after = evaluate(*args, pause_analysis_start='2025-05-01', pause_analysis_end='2026-08-21')
+            self.assertEqual(after['activity']['longest_pauses'], [])
+            self.assertEqual(after['activity']['longest_pause'], {'full_days': 0, 'from': None, 'to': None})
+            for field in ['longest_pause', 'longest_pauses']:
+                before['activity'][field] = after['activity'][field]
+            self.assertEqual(before, after)
+
+    def test_pause_inclusive_boundaries_and_reconstruction(self):
+        self.assertEqual(longest_pauses(['2025-04-28','2025-05-01','2025-05-05','2025-05-13'],
+                                       '2025-05-01', '2025-05-05'),
+                         [{'full_days':3, 'from':'2025-05-01', 'to':'2025-05-05'}])
+        summary = json.loads((Path(__file__).resolve().parents[1]/'data/summary.json').read_text())
+        window = summary['metadata']['pause_window']
+        for key, p in summary['periods'].items():
+            with self.subTest(period=key):
+                days = [d['date'] for d in p['equity']['daily'] if d['orders'] > 0]
+                self.assertEqual(p['activity']['longest_pauses'], longest_pauses(days, window['from'], window['to']))
+                self.assertEqual(p['activity']['longest_pause'], longest_pause(days, window['from'], window['to']))
+
+    def test_shortest_filter_sort_ties_and_limit(self):
+        def trade(i, hours, proceeds, date='2026-03-02'):
+            return dict(id=str(i), name='Example', isin='XX0000000001', date=date,
+                        hours=hours, proceeds=proceeds, net=1, net_percent=10)
+        rows = [trade('cent', 0, .01), trade('late', 1, 20), trade('early', 1, 20, '2026-03-01'),
+                trade('five', .5, 5), trade('low', 1, 10), trade('slow', 2, 30), trade('last', 3, 40)]
+        self.assertEqual([t['id'] for t in shortest_holds(rows)], ['five', 'early', 'late', 'low', 'slow'])
+        self.assertEqual(shortest_holds(rows, 0)[0]['id'], 'cent')
+        self.assertEqual(shortest_holds(rows, 35), [rows[-1]])
+        self.assertEqual(shortest_holds([], 0), [])
+        self.assertEqual(shortest_holds(rows, 100), [])
+
+    def test_shortest_weighted_lots_and_empty_period(self):
+        events = prepare([order(1, 'BUY', 1, -10, time='2026-03-01T08:00:00Z'),
+                          order(2, 'BUY', 3, -30, time='2026-03-01T09:00:00Z'),
+                          order(3, 'SELL', -4, 48, time='2026-03-01T10:00:00Z')])
+        closed, unknown, snaps = fifo(events, {})
+        p = evaluate('all', '2026-03-01', '2026-03-01', events, closed, unknown, snaps, {'prices_provided': False})
+        self.assertEqual(p['holding']['shortest'][0]['hours'], 1.25)
+        self.assertEqual(set(p['holding']['shortest'][0]), {'id','name','isin','date','hours','proceeds','net','net_percent'})
+        empty = evaluate('empty', '2026-04-01', '2026-04-30', events, closed, unknown, snaps, {'prices_provided': False})
+        self.assertEqual(empty['holding']['shortest'], [])
 
     def test_waterfall_reconciles_all_periods(self):
         summary=json.loads((Path(__file__).resolve().parents[1]/'data/summary.json').read_text())

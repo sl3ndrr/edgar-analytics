@@ -2,66 +2,79 @@
   {
     "id": "kernzahlen",
     "title": "Kernzahlen",
-    "enabled": true
+    "enabled": true,
+    "short": "Kernzahlen"
   },
   {
     "id": "topwin_toploss",
     "title": "Beste und schwächste Ergebnisse",
-    "enabled": true
+    "enabled": true,
+    "short": "Top & Flop"
   },
   {
     "id": "volumen",
     "title": "Volumen & Monatsübersicht",
-    "enabled": true
+    "enabled": true,
+    "short": "Volumen"
   },
   {
     "id": "kosten",
     "title": "Was Gebühren verändert haben",
-    "enabled": true
+    "enabled": true,
+    "short": "Gebühren"
   },
   {
     "id": "trefferquote",
     "title": "Qualität der Ergebnisse",
-    "enabled": true
+    "enabled": true,
+    "short": "Qualität"
   },
   {
     "id": "haltedauer",
     "title": "Wie lange Positionen gehalten wurden",
-    "enabled": true
+    "enabled": true,
+    "short": "Haltedauer"
   },
   {
     "id": "equity_drawdown",
     "title": "Ergebnis im Verlauf",
-    "enabled": true
+    "enabled": true,
+    "short": "Verlauf"
   },
   {
     "id": "aktivitaet_heatmap",
     "title": "Wann gehandelt wurde",
-    "enabled": true
+    "enabled": true,
+    "short": "Aktivität"
   },
   {
     "id": "titel",
     "title": "Instrumente & Konzentration",
-    "enabled": true
+    "enabled": true,
+    "short": "Instrumente"
   },
   {
     "id": "kapital_bilanz",
     "title": "Kapital & Bilanz",
-    "enabled": true
+    "enabled": true,
+    "short": "Kapital"
   },
   {
     "id": "trade_republic",
     "title": "Edgar & Trade Republic",
-    "enabled": true
+    "enabled": true,
+    "short": "Trade Republic"
   },
   {
     "id": "fazit",
     "title": "Was die Zahlen zeigen",
-    "enabled": true
+    "enabled": true,
+    "short": "Fazit"
   },
   {
     "id": "datenqualitaet",
     "title": "Datenqualität & Methodik",
-    "enabled": true
+    "enabled": true,
+    "short": "Datenqualität"
   }
 ]

@@ -29,6 +29,38 @@ async function inspectLayout(page,width) {
   assert.equal(geometry.overflow,false,'Horizontal overflow at '+width);
   return geometry;
 }
+async function inspectChapters(page,width,theme) {
+  await page.getByRole('button',{name:'Gesamt',exact:true}).click();
+  const nav=page.locator('.chapter-nav');
+  const points=nav.locator('.chapter-points [data-chapter]');
+  const count=await page.locator('.module').count();
+  assert.equal(await points.count(),count);
+  assert.equal(await page.locator('.module-haltedauer h3').count(),0,'Missing shortest must hide the section');
+  const hash=await page.evaluate(()=>location.hash);
+  for(const [label,index] of [['start',0],['middle',6],['end',count-1]]){
+    await page.evaluate(i=>{if(i===0)scrollTo(0,0);else if(i===12)scrollTo(0,document.documentElement.scrollHeight);else document.querySelectorAll('.module')[i].scrollIntoView({block:'start',behavior:'instant'});},index);
+    await page.waitForFunction(i=>document.querySelector('.chapter-points [aria-current]')?.dataset.chapter===String(i),index);
+    assert.equal(await page.evaluate(()=>location.hash),hash);
+    assert.equal(await nav.locator('.chapter-points [aria-current="location"]').count(),1);
+    if([390,1440].includes(width))await page.screenshot({path:`test-results/chapters-${width}-${theme}-${label}.png`});
+    if(width<1100){
+      await nav.locator('.chapter-trigger').click();
+      const sheet=page.locator('#chapter-sheet');
+      assert.equal(await sheet.locator('[data-chapter]').count(),count);
+      assert.equal(await sheet.locator('[aria-current]').getAttribute('data-chapter'),String(index));
+      if(width===390)await page.screenshot({path:`test-results/chapters-${width}-${theme}-${label}-list.png`});
+      await page.getByRole('button',{name:'Kapitelliste schließen',exact:true}).click();
+    }
+  }
+  const target=2;
+  if(width<1100){await nav.locator('.chapter-trigger').click();await page.locator('#chapter-sheet [data-chapter="2"]').click();assert.equal(await page.locator('#chapter-sheet').evaluate(el=>el.open),false);}
+  else await points.nth(target).click();
+  await page.waitForFunction(()=>document.querySelector('.chapter-points [aria-current]')?.dataset.chapter==='2');
+  assert.equal(await page.evaluate(()=>location.hash),hash);
+  assert.ok(await page.locator('.module').nth(target).evaluate(el=>Math.abs(el.getBoundingClientRect().top-100)<2),'Sticky-header scroll offset');
+  const transitions=await nav.locator('*').evaluateAll(els=>els.map(el=>getComputedStyle(el).transitionDuration));
+  assert.ok(transitions.every(t=>t==='0s'),'Reduced chapter motion');
+}
 async function inspectWaterfall(page,key,width,theme) {
   const p=summary.periods[key],c=p.core;
   const values=[c.gross,-p.costs.realized_fees,c.dividends+c.interest,c.tax_signed,c.result];
@@ -44,9 +76,14 @@ async function inspectWaterfall(page,key,width,theme) {
   const taxes=page.locator('.module-kernzahlen .accounting-line span').last().locator('strong');
   assert.equal(await taxes.textContent(),new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Math.abs(c.tax_signed)<.005?0:c.tax_signed));
   assert.equal(await taxes.getAttribute('class'),c.tax_signed<-.005?'negative':c.tax_signed>.005?'positive':'');
+  assert.equal(await page.locator('.chapter-points button').count(),await page.locator('.module').count(),'Navigation after period render');
+  const pauses=page.locator('.module-aktivitaet_heatmap .ranking li');
+  assert.equal(await pauses.count(),p.activity.longest_pauses.length);
+  assert.deepEqual(await pauses.locator('.rank-value').allTextContents(),p.activity.longest_pauses.map(t=>t.full_days+(t.full_days===1?' Tag':' Tage')));
+  if(!p.activity.longest_pauses.length)assert.match(await page.locator('.module-aktivitaet_heatmap').textContent(),/keine Pause im Betrachtungszeitraum/);
   const pause=page.locator('.module-aktivitaet_heatmap .metric').nth(1).locator('.numeric');
   assert.equal(await pause.textContent(),String(p.activity.longest_pause.full_days));
-  assert.match(await page.locator('.module-aktivitaet_heatmap').textContent(),/Gewertet ab 01.05.2025 \(Beginn des regelmäßigen Handelns\)/);
+  assert.match(await page.locator('.module-aktivitaet_heatmap').textContent(),/Gewertet 01.05.2025 bis 21.08.2026/);
   const motion=await page.locator('.waterfall-bar').evaluateAll(els=>els.map(el=>({duration:getComputedStyle(el).transitionDuration,opacity:getComputedStyle(el).opacity})));
   assert.ok(motion.every(s=>s.duration==='0s' && s.opacity==='1'),'Reduced motion');
   const geometry=await inspectLayout(page,width);
@@ -82,7 +119,8 @@ try {
     const periodChecks=[];
     for(const theme of ['light','dark']){
       if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:/Farbmodus wechseln/}).click();
-      for(const key of ['all','2025-04','2025-05','2025','2025-08','2026-10']){
+      await inspectChapters(page,width,theme);
+      for(const key of ['all','2025-04','2025-05','2025','2025-08','2026-09','2026-10']){
         if(key==='all')await page.getByRole('button',{name:'Gesamt',exact:true}).click();
         else {await page.getByRole('button',{name:key.length===4?'Jahr':'Monat',exact:true}).click();await page.locator('#period').selectOption(key);}
         periodChecks.push({theme,...await inspectWaterfall(page,key,width,theme)});
@@ -97,13 +135,14 @@ try {
     assert.match(page.url(),/period=2026$/);
     await page.getByRole('button',{name:/Ansicht anpassen/}).click();
     await page.getByRole('button',{name:'Nur Kernzahlen',exact:true}).click();
-    assert.equal(await page.locator('.module').count(),1);
+    assert.equal(await page.locator('.module').count(),1);assert.equal(await page.locator('.chapter-nav').count(),0);
     await page.getByRole('button',{name:'Nur Trade Republic',exact:true}).click();
-    assert.equal(await page.locator('.module-trade_republic').count(),1);
+    assert.equal(await page.locator('.module-trade_republic').count(),1);assert.equal(await page.locator('.chapter-nav').count(),0);
     await page.getByRole('button',{name:'Alles',exact:true}).click();
     assert.equal(await page.locator('.module').count(),13);
+    assert.equal(await page.locator('.chapter-points button').count(),13);assert.equal(await page.locator('.chapter-nav').isVisible(),false,'Hidden by settings');
     const ids=await page.locator('#feature-switches input').evaluateAll(els=>els.map(el=>el.value));
-    for(const id of ids){await page.locator(`#feature-switches input[value="${id}"]`).uncheck();assert.equal(await page.locator(`.module-${id}`).count(),0);await page.locator(`#feature-switches input[value="${id}"]`).check();assert.equal(await page.locator(`.module-${id}`).count(),1);}
+    for(const id of ids){await page.locator(`#feature-switches input[value="${id}"]`).uncheck();assert.equal(await page.locator(`.module-${id}`).count(),0);assert.equal(await page.locator('.chapter-points button').count(),12);await page.locator(`#feature-switches input[value="${id}"]`).check();assert.equal(await page.locator(`.module-${id}`).count(),1);assert.equal(await page.locator('.chapter-points button').count(),13);}
     await page.getByRole('button',{name:'Einstellungen schließen'}).click();
     await page.getByRole('button',{name:'Gesamt',exact:true}).click();
     await page.locator('#spread').focus();await page.locator('#spread').press('End');
