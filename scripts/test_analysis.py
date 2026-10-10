@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import json
 import pandas as pd
-from analyze import prepare, fifo, run
+from analyze import prepare, fifo, run, evaluate, longest_pause
 from anonymize import leak_check, names_from
 
 def order(i,typ,qty,amount,fee=-1,time='2026-03-01T09:00:00Z'):
@@ -11,6 +11,34 @@ def order(i,typ,qty,amount,fee=-1,time='2026-03-01T09:00:00Z'):
             'asset_class':'STOCK','shares':qty,'amount':amount,'fee':fee,'tax':None,'price':abs(amount/qty)}
 
 class FifoTests(unittest.TestCase):
+    def test_pause_cutoff_only_changes_pause(self):
+        events=prepare([order(1,'BUY',1,-10,time='2025-04-16T09:00:00Z'),
+                        order(2,'BUY',1,-10,time='2025-05-05T09:00:00Z'),
+                        order(3,'BUY',1,-10,time='2025-05-13T09:00:00Z')])
+        closed,unknown,snaps=fifo(events,{})
+        args=('all','2025-04-16','2025-05-13',events,closed,unknown,snaps,{'prices_provided':False})
+        before=evaluate(*args)
+        after=evaluate(*args,pause_analysis_start='2025-05-01')
+        self.assertEqual(after['activity']['longest_pause'],{'full_days':7,'from':'2025-05-05','to':'2025-05-13'})
+        before['activity']['longest_pause']=after['activity']['longest_pause']
+        self.assertEqual(before,after)
+        april=evaluate('2025-04','2025-04-16','2025-04-30',events,closed,unknown,snaps,{'prices_provided':False},'2025-05-01')
+        self.assertEqual(april['activity']['longest_pause'],{'full_days':0,'from':None,'to':None})
+        self.assertEqual(april['activity']['trading_days'],1)
+
+    def test_pause_without_cutoff(self):
+        self.assertEqual(longest_pause(['2025-05-05','2025-04-16']),
+                         {'full_days':18,'from':'2025-04-16','to':'2025-05-05'})
+
+    def test_waterfall_reconciles_all_periods(self):
+        summary=json.loads((Path(__file__).resolve().parents[1]/'data/summary.json').read_text())
+        for key,p in summary['periods'].items():
+            with self.subTest(period=key):
+                c=p['core']
+                self.assertLessEqual(abs(c['gross']-p['costs']['realized_fees']-c['net']),.01)
+                self.assertLessEqual(abs(c['net']+c['dividends']+c['interest']+c['tax_signed']-c['result']),.01)
+                self.assertLessEqual(abs(c['gross']-p['costs']['realized_fees']+c['dividends']+c['interest']+c['tax_signed']-c['result']),.01)
+
     def test_partial_lots_and_fee_allocation(self):
         events=prepare([order(1,'BUY',10,-100),order(2,'BUY',10,-200),order(3,'SELL',-15,300,time='2026-03-02T10:00:00Z')])
         closed,unknown,snaps=fifo(events,{})

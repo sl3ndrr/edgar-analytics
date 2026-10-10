@@ -2,5 +2,6 @@
   "display_name": "Edgar",
   "show_age": false,
   "age": null,
-  "spread_default_percent": 0
+  "spread_default_percent": 0,
+  "pause_analysis_start": "2025-05-01"
 }

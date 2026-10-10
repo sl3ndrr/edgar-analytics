@@ -127,7 +127,13 @@ def streaks(trades):
             best[sign] = max(best[sign], count)
     return best
 
-def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata):
+def longest_pause(days, pause_analysis_start=None):
+    days = sorted(d for d in days if not pause_analysis_start or d >= pause_analysis_start)
+    pauses = [(max(0, (pd.Timestamp(b) - pd.Timestamp(a)).days - 1), a, b) for a,b in zip(days, days[1:])]
+    pause = max(pauses, default=(0, None, None))
+    return {'full_days': pause[0], 'from': pause[1], 'to': pause[2]}
+
+def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata, pause_analysis_start=None):
     rows = [r for r in events if start <= r['day'] <= end]
     trades = [t for t in all_closed if start <= t['date'] <= end]
     unknown = [t for t in unmatched if start <= t['date'] <= end]
@@ -171,8 +177,7 @@ def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata
     for r in orders:
         heatmap[r['time'].weekday()][r['time'].hour] += 1
     days = sorted(k for k,v in order_days.items() if v)
-    pauses = [(max(0, (pd.Timestamp(b) - pd.Timestamp(a)).days - 1), a, b) for a,b in zip(days, days[1:])]
-    pause = max(pauses, default=(0, None, None))
+    pause = longest_pause(days, pause_analysis_start)
     titles = {}; classes = defaultdict(lambda: {'volume': 0., 'orders': 0, 'net': 0.})
     for r in orders:
         s = titles.setdefault(r['symbol'], {'isin': r['symbol'], 'name': r['name'], 'asset_class': r['asset_class'], 'volume': 0., 'orders': 0, 'net': 0., 'gross': 0., 'fees': 0., 'cost': 0., 'closed': 0})
@@ -212,7 +217,7 @@ def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata
                     'median_hours': statistics.median(hours) if hours else None, 'mean_hours': statistics.mean(hours) if hours else None, 'buckets': buckets},
         'activity': {'heatmap': heatmap, 'daily': [{'date': d, 'orders': order_days[d]} for d in days], 'trading_days': len(days),
                      'active_days': sorted([{'date':d,'orders':order_days[d]} for d in days],key=lambda d: -d['orders'])[:10],
-                     'longest_pause': {'full_days': pause[0], 'from':pause[1], 'to':pause[2]}},
+                     'longest_pause': pause},
         'equity': {'daily': equity, 'max_drawdown': drawdown, 'drawdown_start': dd_start, 'drawdown_end': dd_end},
         'capital': {'deposited': inbound, 'withdrawn': outbound, 'net_deposited': deposited,
                     'return_on_net_deposit_percent': ratio(result,deposited,100) if deposited > 0 else None,
@@ -248,6 +253,8 @@ def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata
     return period
 
 def run(input_path, prices_path):
+    config = json.loads((ROOT/'config.json').read_text(encoding='utf-8'))
+    pause_analysis_start = config.get('pause_analysis_start')
     payload = json.loads(input_path.read_text(encoding='utf-8'))
     events = prepare(payload['records'])
     allowed = {'BUY','SELL','DIVIDEND','INTEREST_PAYMENT','TAX_OPTIMIZATION','TRANSFER'}
@@ -269,12 +276,12 @@ def run(input_path, prices_path):
                            'Steuern werden als signierte Cash-Buchungen im Buchungsmonat berücksichtigt, auch Kaufsteuern und TAX_OPTIMIZATION.',
                            'Rendite auf Netto-Einzahlung ist ein einfacher Quotient, keine zeitgewichtete oder kapitalgewichtete Depotrendite.',
                            'Historische offene Positionen werden zu ihren jeweiligen Monatsenden gezeigt; optionale Preise sind ein einheitlicher, vom Nutzer gelieferter Kursstand.']}
-    periods = {'all': evaluate('all',start,end,events,closed,unmatched,snapshots,metadata)}
+    periods = {'all': evaluate('all',start,end,events,closed,unmatched,snapshots,metadata,pause_analysis_start)}
     for prefix in sorted(set(r['day'][:7] for r in events)):
         s = max(start,prefix+'-01'); e = min(end,(pd.Timestamp(prefix+'-01')+pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d'))
-        periods[prefix] = evaluate(prefix,s,e,events,closed,unmatched,snapshots,metadata)
+        periods[prefix] = evaluate(prefix,s,e,events,closed,unmatched,snapshots,metadata,pause_analysis_start)
     for year in sorted(set(r['day'][:4] for r in events)):
-        periods[year] = evaluate(year,max(start,year+'-01-01'),min(end,year+'-12-31'),events,closed,unmatched,snapshots,metadata)
+        periods[year] = evaluate(year,max(start,year+'-01-01'),min(end,year+'-12-31'),events,closed,unmatched,snapshots,metadata,pause_analysis_start)
     checks = dict(payload['checks'])
     checks.update(periods['all']['checks'])
     checks['raw_rows_by_type'] = payload['checks']['rows_by_type']
