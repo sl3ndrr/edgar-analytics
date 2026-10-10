@@ -76,6 +76,11 @@ async function inspectWaterfall(page,key,width,theme) {
   const taxes=page.locator('.module-kernzahlen .accounting-line span').last().locator('strong');
   assert.equal(await taxes.textContent(),new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(Math.abs(c.tax_signed)<.005?0:c.tax_signed));
   assert.equal(await taxes.getAttribute('class'),c.tax_signed<-.005?'negative':c.tax_signed>.005?'positive':'');
+  assert.equal(await page.locator('.chapter-points button').count(),await page.locator('.module').count(),'Navigation after period render');
+  const pauses=page.locator('.module-aktivitaet_heatmap .ranking li');
+  assert.equal(await pauses.count(),p.activity.longest_pauses.length);
+  assert.deepEqual(await pauses.locator('.rank-value').allTextContents(),p.activity.longest_pauses.map(t=>t.full_days+(t.full_days===1?' Tag':' Tage')));
+  if(!p.activity.longest_pauses.length)assert.match(await page.locator('.module-aktivitaet_heatmap').textContent(),/keine Pause im Betrachtungszeitraum/);
   const pause=page.locator('.module-aktivitaet_heatmap .metric').nth(1).locator('.numeric');
   assert.equal(await pause.textContent(),String(p.activity.longest_pause.full_days));
   assert.match(await page.locator('.module-aktivitaet_heatmap').textContent(),/Gewertet 01.05.2025 bis 21.08.2026/);
