@@ -127,13 +127,25 @@ def streaks(trades):
             best[sign] = max(best[sign], count)
     return best
 
-def longest_pause(days, pause_analysis_start=None):
-    days = sorted(d for d in days if not pause_analysis_start or d >= pause_analysis_start)
-    pauses = [(max(0, (pd.Timestamp(b) - pd.Timestamp(a)).days - 1), a, b) for a,b in zip(days, days[1:])]
-    pause = max(pauses, default=(0, None, None))
-    return {'full_days': pause[0], 'from': pause[1], 'to': pause[2]}
+def longest_pauses(days, pause_analysis_start=None, pause_analysis_end=None):
+    days = sorted(set(d for d in days
+                      if (not pause_analysis_start or d >= pause_analysis_start)
+                      and (not pause_analysis_end or d <= pause_analysis_end)))
+    pauses = [{'full_days': (pd.Timestamp(b) - pd.Timestamp(a)).days - 1, 'from': a, 'to': b}
+              for a, b in zip(days, days[1:]) if (pd.Timestamp(b) - pd.Timestamp(a)).days > 1]
+    return sorted(pauses, key=lambda p: (-p['full_days'], p['from']))[:5]
 
-def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata, pause_analysis_start=None):
+def longest_pause(days, pause_analysis_start=None, pause_analysis_end=None):
+    pauses = longest_pauses(days, pause_analysis_start, pause_analysis_end)
+    return pauses[0] if pauses else {'full_days': 0, 'from': None, 'to': None}
+
+def shortest_holds(trades, min_proceeds=5.0):
+    eligible = [t for t in trades if t['proceeds'] >= min_proceeds]
+    ordered = sorted(eligible, key=lambda t: (t['hours'], -t['proceeds'], t['date']))[:5]
+    return [{k: t[k] for k in ['id', 'name', 'isin', 'date', 'hours', 'proceeds', 'net', 'net_percent']}
+            for t in ordered]
+
+def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata, pause_analysis_start=None, pause_analysis_end=None, shortest_hold_min_proceeds=5.0):
     rows = [r for r in events if start <= r['day'] <= end]
     trades = [t for t in all_closed if start <= t['date'] <= end]
     unknown = [t for t in unmatched if start <= t['date'] <= end]
@@ -177,7 +189,8 @@ def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata
     for r in orders:
         heatmap[r['time'].weekday()][r['time'].hour] += 1
     days = sorted(k for k,v in order_days.items() if v)
-    pause = longest_pause(days, pause_analysis_start)
+    pauses = longest_pauses(days, pause_analysis_start, pause_analysis_end)
+    pause = pauses[0] if pauses else {'full_days': 0, 'from': None, 'to': None}
     titles = {}; classes = defaultdict(lambda: {'volume': 0., 'orders': 0, 'net': 0.})
     for r in orders:
         s = titles.setdefault(r['symbol'], {'isin': r['symbol'], 'name': r['name'], 'asset_class': r['asset_class'], 'volume': 0., 'orders': 0, 'net': 0., 'gross': 0., 'fees': 0., 'cost': 0., 'closed': 0})
@@ -214,10 +227,11 @@ def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata
                     'net_per_trading_day': ratio(net,len(days)), 'profitable_days_percent': ratio(sum(daily_net[d] > .005 for d in days),len(days),100),
                     'winning_streak': streaks(trades)['win'], 'losing_streak': streaks(trades)['loss']},
         'holding': {'daytrades': sum(t['daytrade'] for t in trades), 'daytrade_percent': ratio(sum(t['daytrade'] for t in trades),len(trades),100),
-                    'median_hours': statistics.median(hours) if hours else None, 'mean_hours': statistics.mean(hours) if hours else None, 'buckets': buckets},
+                    'median_hours': statistics.median(hours) if hours else None, 'mean_hours': statistics.mean(hours) if hours else None, 'buckets': buckets,
+                    'shortest': shortest_holds(trades, shortest_hold_min_proceeds)},
         'activity': {'heatmap': heatmap, 'daily': [{'date': d, 'orders': order_days[d]} for d in days], 'trading_days': len(days),
                      'active_days': sorted([{'date':d,'orders':order_days[d]} for d in days],key=lambda d: -d['orders'])[:10],
-                     'longest_pause': pause},
+                     'longest_pause': pause, 'longest_pauses': pauses},
         'equity': {'daily': equity, 'max_drawdown': drawdown, 'drawdown_start': dd_start, 'drawdown_end': dd_end},
         'capital': {'deposited': inbound, 'withdrawn': outbound, 'net_deposited': deposited,
                     'return_on_net_deposit_percent': ratio(result,deposited,100) if deposited > 0 else None,
@@ -255,6 +269,8 @@ def evaluate(key, start, end, events, all_closed, unmatched, snapshots, metadata
 def run(input_path, prices_path):
     config = json.loads((ROOT/'config.json').read_text(encoding='utf-8'))
     pause_analysis_start = config.get('pause_analysis_start')
+    pause_analysis_end = config.get('pause_analysis_end')
+    shortest_hold_min_proceeds = config.get('shortest_hold_min_proceeds', 5.0)
     payload = json.loads(input_path.read_text(encoding='utf-8'))
     events = prepare(payload['records'])
     allowed = {'BUY','SELL','DIVIDEND','INTEREST_PAYMENT','TAX_OPTIMIZATION','TRANSFER'}
@@ -268,7 +284,7 @@ def run(input_path, prices_path):
         prices = dict(zip(p['isin'], p['price']))
     closed, unmatched, snapshots = fifo(events, prices)
     start, end = events[0]['day'], events[-1]['day']
-    metadata = {'prices_provided': bool(prices), 'timezone': 'Europe/Berlin', 'currency':'EUR', 'row_is_order':True,
+    metadata = {'pause_window': {'from': pause_analysis_start, 'to': pause_analysis_end}, 'prices_provided': bool(prices), 'timezone': 'Europe/Berlin', 'currency':'EUR', 'row_is_order':True,
                 'methodology': 'FIFO je ISIN über den gesamten Export. Gebuchte Beträge sind maßgeblich; Kaufgebühren werden anteilig realisierten Lots zugeordnet. Gebühren und Steuern sind separate Cash-Buchungen. Keine Bewertung offener Positionen ohne bereitgestellte Kurse.',
                 'limits': ['Exportzeilen sind keine sicher identifizierbaren Börsenorders; Bruchstücke können separate Ausführungen derselben Order sein.',
                            'Realisierte Ergebnisse schließen Erlöse ohne Kauf-Lot aus. Anfangsbestand und dessen Einstand sind nicht rekonstruierbar.',
@@ -276,12 +292,12 @@ def run(input_path, prices_path):
                            'Steuern werden als signierte Cash-Buchungen im Buchungsmonat berücksichtigt, auch Kaufsteuern und TAX_OPTIMIZATION.',
                            'Rendite auf Netto-Einzahlung ist ein einfacher Quotient, keine zeitgewichtete oder kapitalgewichtete Depotrendite.',
                            'Historische offene Positionen werden zu ihren jeweiligen Monatsenden gezeigt; optionale Preise sind ein einheitlicher, vom Nutzer gelieferter Kursstand.']}
-    periods = {'all': evaluate('all',start,end,events,closed,unmatched,snapshots,metadata,pause_analysis_start)}
+    periods = {'all': evaluate('all',start,end,events,closed,unmatched,snapshots,metadata,pause_analysis_start,pause_analysis_end,shortest_hold_min_proceeds)}
     for prefix in sorted(set(r['day'][:7] for r in events)):
         s = max(start,prefix+'-01'); e = min(end,(pd.Timestamp(prefix+'-01')+pd.offsets.MonthEnd(0)).strftime('%Y-%m-%d'))
-        periods[prefix] = evaluate(prefix,s,e,events,closed,unmatched,snapshots,metadata,pause_analysis_start)
+        periods[prefix] = evaluate(prefix,s,e,events,closed,unmatched,snapshots,metadata,pause_analysis_start,pause_analysis_end,shortest_hold_min_proceeds)
     for year in sorted(set(r['day'][:4] for r in events)):
-        periods[year] = evaluate(year,max(start,year+'-01-01'),min(end,year+'-12-31'),events,closed,unmatched,snapshots,metadata,pause_analysis_start)
+        periods[year] = evaluate(year,max(start,year+'-01-01'),min(end,year+'-12-31'),events,closed,unmatched,snapshots,metadata,pause_analysis_start,pause_analysis_end,shortest_hold_min_proceeds)
     checks = dict(payload['checks'])
     checks.update(periods['all']['checks'])
     checks['raw_rows_by_type'] = payload['checks']['rows_by_type']
