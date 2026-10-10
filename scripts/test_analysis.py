@@ -54,6 +54,18 @@ class FifoTests(unittest.TestCase):
                 before['activity'][field] = after['activity'][field]
             self.assertEqual(before, after)
 
+    def test_pause_inclusive_boundaries_and_reconstruction(self):
+        self.assertEqual(longest_pauses(['2025-04-28','2025-05-01','2025-05-05','2025-05-13'],
+                                       '2025-05-01', '2025-05-05'),
+                         [{'full_days':3, 'from':'2025-05-01', 'to':'2025-05-05'}])
+        summary = json.loads((Path(__file__).resolve().parents[1]/'data/summary.json').read_text())
+        window = summary['metadata']['pause_window']
+        for key, p in summary['periods'].items():
+            with self.subTest(period=key):
+                days = [d['date'] for d in p['equity']['daily'] if d['orders'] > 0]
+                self.assertEqual(p['activity']['longest_pauses'], longest_pauses(days, window['from'], window['to']))
+                self.assertEqual(p['activity']['longest_pause'], longest_pause(days, window['from'], window['to']))
+
     def test_shortest_filter_sort_ties_and_limit(self):
         def trade(i, hours, proceeds, date='2026-03-02'):
             return dict(id=str(i), name='Example', isin='XX0000000001', date=date,

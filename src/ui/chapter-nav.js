@@ -20,6 +20,9 @@ export function mountChapterNav(modules, {onNavigate}={}) {
     let next=0;
     modules.forEach((m,i)=>{if(m.element.getBoundingClientRect().top<=line)next=i;});
     if(scrollY+innerHeight>=document.documentElement.scrollHeight-2)next=modules.length-1;
+    const main=document.querySelector('main');
+    const edge=main.getBoundingClientRect().right-parseFloat(getComputedStyle(main).paddingRight);
+    nav.querySelectorAll('.chapter-points button').forEach(b=>b.classList.toggle('label-fits',b.querySelector('.chapter-label').getBoundingClientRect().left>=edge));
     if(next===active)return;
     active=next;
     buttons.forEach(b=>{const i=+b.dataset.chapter;b.classList.toggle('passed',i<active);if(i===active)b.setAttribute('aria-current','location');else b.removeAttribute('aria-current');});
